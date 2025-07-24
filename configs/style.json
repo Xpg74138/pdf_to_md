@@ -1,0 +1,36 @@
+{
+  "colors": {
+    "bg_main": "#f9f9f9",
+    "bg_canvas": "#f2f2f2",
+    "bg_control": "#ffffff",
+    "bg_label": "#f0f0f0",
+    "bg_active": "#e0e0e0"
+  },
+  "font": {
+    "family": "Segoe UI",
+    "size": 10,
+    "size_small": 9
+  },
+  "labels": {
+    "editor_title": "编辑区",
+    "preview_title": "预览区",
+    "button_import": "导入 PDF",
+    "button_prev": "上一页",
+    "button_next": "下一页",
+    "button_jump": "跳转",
+    "button_export": "导出 Markdown",
+    "page_label": "当前页: {}/{}"
+  },
+  "padding": {
+    "button_padx": 5,
+    "button_pady": 2,
+    "label_padx": 6,
+    "label_pady": 4,
+    "control_padx": 10,
+    "control_pady": 5
+  },
+  "layout": {
+    "left_ratio": 5,
+    "right_ratio": 3
+  }
+}
