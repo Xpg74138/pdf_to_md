@@ -29,7 +29,8 @@
 📁 你的导出路径/
 └── 📁 example/
 ├── export.md                  ← 合并后的 Markdown 文本
-├── image\_descriptions.json   ← 图像文件名 -> 图例描述
+├── descriptions.json          ← 图像文件名 -> 图例描述
+├── image\
 └── 📁 images/                 ← 所有保留图像（fig001.png ...）
 
 ````
@@ -52,7 +53,7 @@ pip install -r requirements.txt
 ### ✅ 运行程序
 
 ```bash
-python gui.py
+python main.py
 ```
 
 ---
@@ -68,7 +69,7 @@ python gui.py
 ---
 
 ## 📝 使用说明
-
+0. 记得首先要在/utils/extract_txt.py中填写百度OCR的API_KEY和SECRET_KEY 
 1. 点击 **导入 PDF** 按钮，选择文件
 2. 程序将自动提取文字和图像，显示于左右界面
 3. 你可以：
@@ -91,14 +92,6 @@ python gui.py
 * 可扩展性强，适合集成 OCR API（如百度、Tesseract）或深度图像分类模型
 
 ---
-
-## 📌 TODO（可选扩展）
-
-* [ ] 图像点击放大预览
-* [ ] 支持图例多行编辑
-* [ ] OCR 引擎切换（Tesseract / 百度 / MinerU）
-* [ ] 批量 PDF 处理
-* [ ] 一键导出为 ZIP 文件
 
 ---
 
