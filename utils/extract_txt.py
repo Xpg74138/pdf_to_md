@@ -4,8 +4,8 @@ import io
 from PIL import Image
 
 # 百度 API 密钥
-API_KEY = "gUuCjly1EDjIaqAInxN9EcBn"
-SECRET_KEY = "HNmTYwX8wyuZOuatfS73c3ipcj4CN9tU"
+API_KEY = ""
+SECRET_KEY = ""
 
 # 获取 access_token
 def get_access_token():
