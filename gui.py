@@ -398,6 +398,7 @@ class PDFCleanerGUI:
         if self.current_page < len(self.md_content):
             content = self.md_content[self.current_page]
             self.md_text.insert(tk.END, content)
+        self.md_text.edit_reset()
         self.md_text.config(state=tk.NORMAL)
 
     def display_image(self):
