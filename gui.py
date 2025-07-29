@@ -640,7 +640,6 @@ class PDFCleanerGUI:
                     desc = descriptions[i] if i < len(descriptions) else f"图 {fig_count}"
                     img = Image.fromarray(img_array)
                     img.save(os.path.join(image_folder, filename))
-                    merged_md += f"![{desc}](./images/{filename})\n\n"
                     description_map[filename] = desc
                     fig_count += 1
 

@@ -5,7 +5,7 @@ def clean_text(text):
     text = text.replace("〜", "至")
     
     # 移除文本中的图示引用（例如 图4-1）
-    text = re.sub(r"图\d+[-\d]*", "", text)
+    text = re.sub(r"(图\d+[-\d]*)", "", text)
     
     # 去除多余的空格、换行符
     text = re.sub(r"\s+", " ", text).strip()
