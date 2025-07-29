@@ -407,7 +407,7 @@ class PDFCleanerGUI:
                         for i in sorted(self.images_map.keys())
                     }
                     for i in sorted(self.images_map.keys()):
-                        self.image_descriptions[i] = [f"图 {i+1}-{j+1},{self.legends_map[i][j]}" for j in range(len(self.images_map[i]))]
+                        self.image_descriptions[i] = [f"{self.legends_map[i][j]}" for j in range(len(self.images_map[i]))]
 
                     self.init_record()
                     self.display_page(0)
@@ -537,15 +537,7 @@ class PDFCleanerGUI:
     def delete_image(self, index):
         """从当前页中删除指定图像并删除文件"""
         if self.current_page in self.images_content and 0 <= index < len(self.images_content[self.current_page]):
-            # 删除图片文件
-            record_path = os.path.join(self.export_dir, "record.json")
-            with open(record_path, "r", encoding="utf-8") as f:
-                record = json.load(f)
-            img_path = record["images_content"][str(self.current_page)][index]
-            try:
-                os.remove(os.path.join(self.export_dir, img_path))
-            except Exception:
-                pass
+            # 删除图片文件记录
             del self.images_content[self.current_page][index]
             del self.image_descriptions[self.current_page][index]
             self.save_to_record()
