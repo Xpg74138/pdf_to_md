@@ -11,6 +11,7 @@ from PIL import Image, ImageTk
 import json
 from parse import extract_pdf
 import shutil
+import time
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
@@ -33,6 +34,7 @@ class PDFCleanerGUI:
         self.images_content = {}
         self.export_dir = None
         self.record_path = None
+        self.canvas_image_id = None  # 用于复用canvas上的图片
 
         self.communication_queue = queue.Queue()
 
@@ -213,7 +215,6 @@ class PDFCleanerGUI:
                 self.restore_from_record(record_path)
                 self.status_var.set("已从历史记录恢复")
                 return
-
         try:
             self.pdf_document = fitz.open(self.pdf_path)
             self.total_pages = len(self.pdf_document)
@@ -233,7 +234,7 @@ class PDFCleanerGUI:
         self.pdf_path = record["pdf_path"]
         self.current_page = record.get("current_page", 0)
         self.md_content = []
-        self.image_descriptions = record.get("image_descriptions", {})
+        self.image_descriptions = {}
         self.images_content = {}
         # 恢复md
         for i, md_path in record["md_files"].items():
@@ -245,6 +246,11 @@ class PDFCleanerGUI:
             for img_path in img_list:
                 img = Image.open(os.path.join(self.export_dir, img_path))
                 self.images_content[int(i)].append(np.array(img))
+        # 恢复图像描述
+        for i, img_descriptions_list in record["image_descriptions"].items():
+            self.image_descriptions[int(i)] = []
+            for img_descriptions in img_descriptions_list:
+                self.image_descriptions[int(i)].append(img_descriptions)
         # 恢复PDF
         if self.pdf_path and os.path.exists(self.pdf_path):
             self.pdf_document = fitz.open(self.pdf_path)
@@ -253,30 +259,39 @@ class PDFCleanerGUI:
             self.update_ui_after_import()
             self.update_navigation_buttons()
 
+
     def save_to_record(self):
-        """保存所有内容到record.json和文件"""
         if not self.export_dir:
             return
-        md_dir = self.export_dir
+
+        # 1. 创建目录
         img_dir = os.path.join(self.export_dir, "images")
         os.makedirs(img_dir, exist_ok=True)
+
         md_files = {}
         images_content_paths = {}
-        # 保存md
+
+        # --- 测试 MD 保存耗时 ---
+        t_md_start = time.time()
         for i, md in enumerate(self.md_content):
             md_path = f"page_{i+1}.md"
-            with open(os.path.join(md_dir, md_path), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.export_dir, md_path), "w", encoding="utf-8") as f:
                 f.write(md)
             md_files[str(i)] = md_path
-        # 保存图片
+        print(f"▶️ MD 保存耗时：{time.time() - t_md_start:.2f} 秒")
+
+        # --- 测试图片保存耗时 ---
+        t_img_start = time.time()
         for page_idx, images in self.images_content.items():
             images_content_paths[str(page_idx)] = []
             for j, img_array in enumerate(images):
-                img = Image.fromarray(img_array)
+                #img = Image.fromarray(img_array)
                 img_path = f"images/page_{page_idx+1}_{j}.png"
-                img.save(os.path.join(self.export_dir, img_path))
+                #img.save(os.path.join(self.export_dir, img_path),format="PNG", compress_level=1)
                 images_content_paths[str(page_idx)].append(img_path)
-        # 保存描述和索引
+        print(f"▶️ 图片保存耗时：{time.time() - t_img_start:.2f} 秒")
+
+        # --- 测试 JSON 写入耗时 ---
         record = {
             "pdf_path": self.pdf_path,
             "current_page": self.current_page,
@@ -284,8 +299,55 @@ class PDFCleanerGUI:
             "images_content": images_content_paths,
             "image_descriptions": self.image_descriptions
         }
+        t_json_start = time.time()
         with open(os.path.join(self.export_dir, "record.json"), "w", encoding="utf-8") as f:
             json.dump(record, f, ensure_ascii=False, indent=2)
+        print(f"▶️ JSON 写入耗时：{time.time() - t_json_start:.2f} 秒")
+
+    def init_record(self):
+        if not self.export_dir:
+            return
+
+        # 1. 创建目录
+        img_dir = os.path.join(self.export_dir, "images")
+        os.makedirs(img_dir, exist_ok=True)
+
+        md_files = {}
+        images_content_paths = {}
+
+        # --- 测试 MD 保存耗时 ---
+        t_md_start = time.time()
+        for i, md in enumerate(self.md_content):
+            md_path = f"page_{i+1}.md"
+            with open(os.path.join(self.export_dir, md_path), "w", encoding="utf-8") as f:
+                f.write(md)
+            md_files[str(i)] = md_path
+        print(f"▶️ MD 保存耗时：{time.time() - t_md_start:.2f} 秒")
+
+        # --- 测试图片保存耗时 ---
+        t_img_start = time.time()
+        for page_idx, images in self.images_content.items():
+            images_content_paths[str(page_idx)] = []
+            for j, img_array in enumerate(images):
+                img = Image.fromarray(img_array)
+                img_path = f"images/page_{page_idx+1}_{j}.png"
+                img.save(os.path.join(self.export_dir, img_path),format="PNG", compress_level=1)
+                images_content_paths[str(page_idx)].append(img_path)
+        print(f"▶️ 图片保存耗时：{time.time() - t_img_start:.2f} 秒")
+
+        # --- 测试 JSON 写入耗时 ---
+        record = {
+            "pdf_path": self.pdf_path,
+            "current_page": self.current_page,
+            "md_files": md_files,
+            "images_content": images_content_paths,
+            "image_descriptions": self.image_descriptions
+        }
+        t_json_start = time.time()
+        with open(os.path.join(self.export_dir, "record.json"), "w", encoding="utf-8") as f:
+            json.dump(record, f, ensure_ascii=False, indent=2)
+        print(f"▶️ JSON 写入耗时：{time.time() - t_json_start:.2f} 秒")
+
 
     def reset_state(self):
         self.md_content = []
@@ -338,14 +400,16 @@ class PDFCleanerGUI:
                 elif msg_type == "done":
                     self.text_map = data["text"]
                     self.images_map = data["images"]
+                    self.legends_map= data["legends"]
                     self.md_content = [self.text_map[i] for i in sorted(self.text_map.keys())]
                     self.images_content = {
                         i: self.images_map[i]
                         for i in sorted(self.images_map.keys())
                     }
                     for i in sorted(self.images_map.keys()):
-                        self.image_descriptions[i] = [f"图 {i+1}-{j+1}" for j in range(len(self.images_map[i]))]
-                    self.save_to_record()
+                        self.image_descriptions[i] = [f"图 {i+1}-{j+1},{self.legends_map[i][j]}" for j in range(len(self.images_map[i]))]
+
+                    self.init_record()
                     self.display_page(0)
                     self.progress_var.set(100)
                     self.status_var.set("处理完成!")
@@ -363,7 +427,6 @@ class PDFCleanerGUI:
         if not self.pdf_document or page_num >= self.total_pages:
             return
         self.current_page = page_num
-        self.pdf_canvas.delete("all")
         page = self.pdf_document.load_page(page_num)
         zoom_matrix = fitz.Matrix(self.zoom_factor, self.zoom_factor)
         pix = page.get_pixmap(matrix=zoom_matrix)
@@ -382,14 +445,18 @@ class PDFCleanerGUI:
     def center_image_on_canvas(self, img_width, img_height):
         canvas_width = self.pdf_canvas.winfo_width()
         canvas_height = self.pdf_canvas.winfo_height()
-        x_pos = (canvas_width - img_width) / 2 if canvas_width > img_width else 0
-        y_pos = (canvas_height - img_height) / 2 if canvas_height > img_height else 0
-        self.pdf_canvas.create_image(
-            max(0, x_pos),
-            max(0, y_pos),
-            anchor=tk.NW,
-            image=self.photo_image
-        )
+        x_pos = canvas_width // 2
+        y_pos = canvas_height // 2
+
+        # 复用canvas上的图片item
+        if self.canvas_image_id is None:
+            self.canvas_image_id = self.pdf_canvas.create_image(
+                x_pos, y_pos, anchor=tk.CENTER, image=self.photo_image
+            )
+        else:
+            self.pdf_canvas.coords(self.canvas_image_id, x_pos, y_pos)
+            self.pdf_canvas.itemconfig(self.canvas_image_id, image=self.photo_image)
+
         self.pdf_canvas.config(scrollregion=(0, 0, img_width, img_height))
 
     def display_markdown_content(self):
@@ -402,47 +469,70 @@ class PDFCleanerGUI:
         self.md_text.config(state=tk.NORMAL)
 
     def display_image(self):
+        """将图像加载放入后台线程，加快主界面响应速度"""
         for widget in self.image_frame.winfo_children():
             widget.destroy()
+
         if self.current_page not in self.images_content:
             self.status_var.set(f"第 {self.current_page + 1} 页无图像")
             return
+
         images = self.images_content[self.current_page]
-        # -------- 修正：保证描述长度和图片数量一致 --------
-        if self.current_page not in self.image_descriptions:
-            self.image_descriptions[self.current_page] = ["" for _ in images]
-        else:
-            descs = self.image_descriptions[self.current_page]
-            if len(descs) < len(images):
-                descs += [""] * (len(images) - len(descs))
-                self.image_descriptions[self.current_page] = descs
-            elif len(descs) > len(images):
-                self.image_descriptions[self.current_page] = descs[:len(images)]
-        # -------------------------------------------
+        descriptions = self.image_descriptions.get(self.current_page, [""] * len(images))
+
+        if len(descriptions) < len(images):
+            descriptions += [""] * (len(images) - len(descriptions))
+        elif len(descriptions) > len(images):
+            descriptions = descriptions[:len(images)]
+        self.image_descriptions[self.current_page] = descriptions
+
         self.photo_image_refs = []
         self.image_desc_entries = []
-        for idx, img_array in enumerate(images):
+
+        def load_images_in_thread():
+            rendered_images = []
+            for idx, img_array in enumerate(images):
+                try:
+                    img = Image.fromarray(img_array)
+                    img_resized = img.resize((200, 200), resample=Image.Resampling.LANCZOS)
+                    tk_img = ImageTk.PhotoImage(img_resized)
+                    rendered_images.append((idx, tk_img))
+                except Exception as e:
+                    rendered_images.append((idx, None))
+            self.root.after(0, lambda: self.render_images(rendered_images, descriptions))
+
+        threading.Thread(target=load_images_in_thread, daemon=True).start()
+        self.status_var.set("正在加载图像...")
+
+    def render_images(self, rendered_images, descriptions):
+        """在主线程中更新UI"""
+        for idx, tk_img in rendered_images:
             row_frame = tk.Frame(self.image_frame, pady=5)
             row_frame.pack(fill="x", padx=10)
             row_frame.grid_columnconfigure(0, weight=1)
             row_frame.grid_columnconfigure(1, weight=1)
             row_frame.grid_columnconfigure(2, weight=1)
             row_frame.grid_rowconfigure(0, weight=1)
-            img = Image.fromarray(img_array)
-            img_resized = img.resize((200, 200), resample=Image.Resampling.LANCZOS)
-            tk_img = ImageTk.PhotoImage(img_resized)
-            self.photo_image_refs.append(tk_img)
-            desc_var = tk.StringVar(value=self.image_descriptions[self.current_page][idx])
+
+            desc_var = tk.StringVar(value=descriptions[idx])
             desc_entry = tk.Entry(row_frame, textvariable=desc_var)
             desc_entry.grid(row=0, column=1, sticky="nsew", padx=5)
             self.image_desc_entries.append(desc_var)
-            img_label = tk.Label(row_frame, image=tk_img, width=200, height=200)
-            img_label.grid(row=0, column=0, sticky="nsew", padx=5)
+
+            if tk_img:
+                img_label = tk.Label(row_frame, image=tk_img, width=200, height=200)
+                img_label.grid(row=0, column=0, sticky="nsew", padx=5)
+                self.photo_image_refs.append(tk_img)
+            else:
+                tk.Label(row_frame, text="加载失败", width=25, height=10).grid(row=0, column=0)
+
             btn = tk.Button(row_frame, text="删除", command=lambda i=idx: self.delete_image(i))
             btn.grid(row=0, column=2, sticky="nsew", padx=5)
+
         self.image_frame.update_idletasks()
         self.image_canvas.config(scrollregion=self.image_canvas.bbox("all"))
-        self.status_var.set(f"第 {self.current_page + 1} 页，共 {len(images)} 张图")
+        self.status_var.set(f"第 {self.current_page + 1} 页，共 {len(rendered_images)} 张图")
+
 
     def delete_image(self, index):
         """从当前页中删除指定图像并删除文件"""

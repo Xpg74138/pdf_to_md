@@ -1,5 +1,28 @@
 import cv2
+import requests
+import base64
 import os
+from utils.extract_txt import get_access_token
+
+TOKEN = get_access_token()
+
+def get_ocr_text(image_crop):
+    # 将图像编码为 base64
+    _, buffer = cv2.imencode('.jpg', image_crop)
+    img_base64 = base64.b64encode(buffer).decode()
+
+    url = f"https://aip.baidubce.com/rest/2.0/ocr/v1/general?access_token={TOKEN}" 
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    data = {"image": img_base64}
+
+    response = requests.post(url, headers=headers, data=data)
+    result = response.json()
+    words = []
+    if "words_result" in result:
+        for w in result["words_result"]:
+            words.append(w["words"])
+    return "\n".join(words)
+
 
 def extract_image(img, output_dir, index, min_area=90000):
     os.makedirs(output_dir, exist_ok=True)
@@ -15,8 +38,9 @@ def extract_image(img, output_dir, index, min_area=90000):
 
     contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    extracted_images = []
-    count = 0
+    extracted_figures = []
+    legends = []
+
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
         area = w * h
@@ -24,8 +48,16 @@ def extract_image(img, output_dir, index, min_area=90000):
 
         if area > min_area and 0.5 < aspect_ratio < 2.0:
             figure = img[y:y+h, x:x+w]
-            extracted_images.append(figure)  # ✅ 保存为 ndarray
-            count += 1
+            extracted_figures.append(figure)
 
-    print(f"✅ 第 {index+1} 页提取 {count} 个矩形图像")
-    return extracted_images  # ✅ 返回图像列表
+            # 尝试提取图形下方的图例（向下偏移一定高度）
+            legend_height = min(200, img.shape[0] - (y+h))  # 避免越界
+            if legend_height > 20:
+                legend_crop = img[y+h:y+h+legend_height, x:x+w]
+                legend_text = get_ocr_text(legend_crop)
+                legends.append(legend_text)
+            else:
+                legends.append("")
+
+    print(f"✅ 第 {index+1} 页提取 {len(extracted_figures)} 个图形及图例")
+    return extracted_figures, legends

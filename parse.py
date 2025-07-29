@@ -12,12 +12,12 @@ def process_page(args):
 
     if page_text:
         text = clean_text(page_text)
-        images = extract_image(img, "output", i)
+        images,legends = extract_image(img, "output", i)
     else:
         text = clean_text(baidu_ocr_image(img))
-        images = extract_image(img, "output", i)
+        images,legends = extract_image(img, "output", i)
 
-    return i, text, images
+    return i, text, images,legends
 
 def extract_pdf(path, return_dict, queue, dpi=300):
     doc = fitz.open(path)
@@ -34,15 +34,18 @@ def extract_pdf(path, return_dict, queue, dpi=300):
 
     text_map = {}
     images_map = {}
+    legends_map = {}
 
     # 使用多进程池处理每一页
     with multiprocessing.Pool(processes=min(8, multiprocessing.cpu_count())) as pool:
-        for j, (i, text, images) in enumerate(pool.imap_unordered(process_page, tasks)):
+        for j, (i, text, images,legends) in enumerate(pool.imap_unordered(process_page, tasks)):
             text_map[i] = text
             if images:
                 images_map[i] = images
+                legends_map[i] = legends
             queue.put(("progress", int((j + 1) / total_pages * 100)))
 
     return_dict["text"] = text_map
     return_dict["images"] = images_map
+    return_dict["legends"] = legends_map
     queue.put(("done", True))
