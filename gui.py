@@ -12,6 +12,8 @@ import json
 from parse import extract_pdf
 import shutil
 import time
+from tkhtmlview import HTMLLabel
+import markdown
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
@@ -75,7 +77,7 @@ class PDFCleanerGUI:
 
         # Markdown编辑器
         self.md_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.md_tab, text="Markdown")
+        self.notebook.add(self.md_tab, text="编辑")
         self.md_text = tk.Text(
             self.md_tab,
             wrap=tk.WORD,
@@ -87,6 +89,15 @@ class PDFCleanerGUI:
         self.md_text.config(yscrollcommand=self.md_scrollbar.set)
         self.md_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.md_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.md_text.bind("<<Modified>>", self.on_md_modified)
+
+
+        # Markdown预览标签页
+        self.preview_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.preview_tab, text="预览")
+        self.preview_html_label = HTMLLabel(self.preview_tab, html="", background="white", width=100)
+        self.preview_html_label.pack(fill=tk.BOTH, expand=True)
+        
 
         # 图像显示标签页
         self.img_tab = ttk.Frame(self.notebook)
@@ -659,4 +670,20 @@ class PDFCleanerGUI:
         except Exception as e:
             messagebox.showerror("导出错误", f"无法保存文件:\n{str(e)}")
 
+    def update_md_preview(self):
+        """更新Markdown渲染预览"""
+        try:
+            raw_md = self.md_text.get(1.0, tk.END)
+            html = markdown.markdown(raw_md)
+            self.preview_html_label.set_html(html)
+            self.status_var.set("Markdown渲染成功")
+        except Exception as e:
+            self.status_var.set(f"渲染失败: {str(e)}")
+
+
+    def on_md_modified(self, event=None):
+        """每当Markdown文本修改时自动刷新预览"""
+        if self.md_text.edit_modified():  # 确保是用户输入引起的变化
+            self.update_md_preview()
+            self.md_text.edit_modified(False)  # 重置修改标志
 
