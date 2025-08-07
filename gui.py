@@ -555,7 +555,8 @@ class PDFCleanerGUI:
             self.display_image()
 
     def save_current_image_descriptions(self):
-        if not hasattr(self, "image_desc_entries"):
+        if not hasattr(self, "image_desc_entries") or not self.image_desc_entries:
+            print("⚠️ 当前页面图像尚未加载完毕，跳过描述保存")
             return
         if self.current_page in self.image_descriptions:
             self.image_descriptions[self.current_page] = [
