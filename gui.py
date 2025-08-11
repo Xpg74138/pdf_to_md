@@ -14,6 +14,22 @@ import shutil
 import time
 from tkhtmlview import HTMLLabel
 import markdown
+from PIL import Image, ImageTk, ImageGrab  # NEW
+
+# 放在 import 之后、Tk() 之前
+import sys
+if sys.platform == "win32":
+    try:
+        import ctypes
+        # Win8.1+：每显示器 DPI 感知
+        ctypes.OleDLL("shcore").SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            # 兼容旧系统：系统级 DPI 感知
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
@@ -138,6 +154,15 @@ class PDFCleanerGUI:
             width=10
         )
         self.export_btn.pack(side=tk.LEFT, padx=2)
+        self.capture_btn = ttk.Button(
+        self.btn_frame,
+        text="截屏添加",
+        command=self.capture_and_add_image,  # NEW
+        state=tk.DISABLED,
+        width=10
+        )
+        self.capture_btn.pack(side=tk.LEFT, padx=2)
+
 
         # 页面导航
         self.nav_frame = ttk.Frame(self.bottom_frame)
@@ -298,7 +323,10 @@ class PDFCleanerGUI:
             for j, img_array in enumerate(images):
                 #img = Image.fromarray(img_array)
                 img_path = f"images/page_{page_idx+1}_{j}.png"
+                abs_path = os.path.join(self.export_dir, img_path)
                 #img.save(os.path.join(self.export_dir, img_path),format="PNG", compress_level=1)
+                if not os.path.exists(abs_path):
+                    Image.fromarray(img_array).save(abs_path, format="PNG", compress_level=1)
                 images_content_paths[str(page_idx)].append(img_path)
         print(f"▶️ 图片保存耗时：{time.time() - t_img_start:.2f} 秒")
 
@@ -368,6 +396,89 @@ class PDFCleanerGUI:
         self.pdf_canvas.delete("all")
         self.images_content = {}
         self.image_descriptions = {}
+        if hasattr(self, "capture_btn"):
+            self.capture_btn.config(state=tk.DISABLED)  # NEW
+
+    
+    def capture_and_add_image(self):
+        """拉框截取屏幕区域并追加到当前页的图片列表"""
+        if not self.pdf_document:
+            messagebox.showwarning("提示", "请先导入 PDF")
+            return
+
+        # 创建全屏取框层
+        overlay = tk.Toplevel(self.root)
+        overlay.attributes("-fullscreen", True)
+        overlay.attributes("-topmost", True)
+        overlay.attributes("-alpha", 0.3)  # 半透明遮罩
+        overlay.configure(bg="black")
+        overlay.title("拖拽选择区域（Esc 取消）")
+
+        canvas = tk.Canvas(overlay, cursor="crosshair", bg="black", highlightthickness=0)
+        canvas.pack(fill=tk.BOTH, expand=True)
+
+        # 提示文字（可选）
+        tip = tk.Label(overlay, text="拖拽选择要截取的区域，松开鼠标完成（Esc 取消）",
+                    fg="white", bg="black", font=("Microsoft YaHei", 14))
+        tip.place(relx=0.5, rely=0.05, anchor="n")
+
+        sel = {"x0": 0, "y0": 0, "x0r": 0, "y0r": 0, "rect": None}
+
+        def on_press(e):
+            sel["x0"], sel["y0"] = e.x, e.y
+            sel["x0r"], sel["y0r"] = e.x_root, e.y_root
+            if sel["rect"]:
+                canvas.delete(sel["rect"])
+            sel["rect"] = canvas.create_rectangle(sel["x0"], sel["y0"], e.x, e.y,
+                                                outline="red", width=2)
+
+        def on_move(e):
+            if sel["rect"]:
+                canvas.coords(sel["rect"], sel["x0"], sel["y0"], e.x, e.y)
+
+        def on_release(e):
+            x1 = min(sel["x0r"], e.x_root)
+            y1 = min(sel["y0r"], e.y_root)
+            x2 = max(sel["x0r"], e.x_root)
+            y2 = max(sel["y0r"], e.y_root)
+
+            # 隐藏取框层，避免被截图带进去
+            overlay.withdraw()
+            self.root.update_idletasks()
+            time.sleep(0.05)
+
+            try:
+                if x2 - x1 < 5 or y2 - y1 < 5:
+                    raise ValueError("选择区域太小")
+
+                img = ImageGrab.grab(bbox=(x1, y1, x2, y2))
+                arr = np.array(img.convert("RGB"))
+
+                # 追加到当前页
+                self.images_content.setdefault(self.current_page, []).append(arr)
+                self.image_descriptions.setdefault(self.current_page, []).append("")
+
+                # 保存记录并刷新 UI
+                self.save_to_record()
+                self.display_image()
+                self.status_var.set(f"已添加截屏到第 {self.current_page + 1} 页")
+
+            except Exception as ex:
+                messagebox.showerror("截屏失败", str(ex))
+            finally:
+                overlay.destroy()
+
+        def on_escape(e):
+            overlay.destroy()
+            self.status_var.set("已取消截屏")
+
+        canvas.bind("<ButtonPress-1>", on_press)
+        canvas.bind("<B1-Motion>", on_move)
+        canvas.bind("<ButtonRelease-1>", on_release)
+        overlay.bind("<Escape>", on_escape)
+        overlay.focus_set()
+
+
 
     def update_ui_after_import(self):
         self.page_var.set(f"{self.current_page+1}/{self.total_pages}")
@@ -376,6 +487,8 @@ class PDFCleanerGUI:
         self.jump_btn.config(state=tk.NORMAL)
         self.export_btn.config(state=tk.NORMAL)
         self.progress_var.set(0)
+        self.capture_btn.config(state=tk.NORMAL)  # NEW
+
 
     def start_processing(self):
         manager = multiprocessing.Manager()
