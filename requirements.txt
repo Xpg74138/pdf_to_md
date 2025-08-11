@@ -2,3 +2,5 @@ PyMuPDF
 Pillow
 opencv-python
 requests
+tkhtmlview
+markdown

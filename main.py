@@ -1,7 +1,7 @@
 # main.py
 import tkinter as tk
 import multiprocessing
-from gui import PDFCleanerGUI
+from guis import PDFCleanerGUI
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
